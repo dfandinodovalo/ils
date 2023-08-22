@@ -11,9 +11,23 @@
 
 
 
-# Dependencies
+# Dependencies 
+It is necessary to install __ncurses__:
 
-- ncurses
+- Install in Debian/Ubuntu Linux
+
+```
+  apt-get install libncurses5-dev libncursesw5-dev
+```
+
+- install in Debian/Ubuntu Linux
+
+```
+ pacman -S ncurses
+```
+
+### Other dependecies:
+
 - dirent.h
 - string.h
 - sys/stat.h
@@ -42,14 +56,21 @@
 - (<span style="color:orange">It doesn't work properly</span>) If you want to explore another directory, you can provide the path as an argument when running the program.
 
 ```
-./ils ./file_browser /path/to/another/directory.
+./ils /path/to/another/directory
 ```
 
 
 # Execution
 
-You can compile "ils" using the provided [Makefile](https://github.com/dfandinodovalo/ils/blob/main/Makefile):
+Using the Makefile gives you the option to compile and execute, or just to compile the program. You can compile "ils" using the provided [Makefile](https://github.com/dfandinodovalo/ils/blob/main/Makefile).
 
+## Compile and run:
+
+```
+make run
+```
+
+## Compile:
 
 ```
 make
@@ -61,21 +82,16 @@ Or, you can manually compile it using gcc:
 gcc ils.c -o ils -lncurses
 ```
 
-Finally, execute ils with:
+## Execute:
+
 
 ```
 ./ils
 ```
+<br>
+<br>
 
-or
-
-
-```
-make run
-```
-
-
-## Example:
+### Example:
 
 <p align="center">
   <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/image_1.png?raw=true" alt="ils running in /home/user/Desktop">
