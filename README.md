@@ -17,7 +17,7 @@ It is necessary to install __ncurses__:
 - Install in Debian/Ubuntu Linux
 
 ```
-  apt-get install libncurses5-dev libncursesw5-dev
+  apt-get install libncurses5-dev
 ```
 
 - Install in Arch Linux distributions:
