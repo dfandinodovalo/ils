@@ -20,8 +20,7 @@ It is necessary to install __ncurses__:
   apt-get install libncurses5-dev libncursesw5-dev
 ```
 
-- install in Debian/Ubuntu Linux
-
+- Install in Arch Linux distributions:
 ```
  pacman -S ncurses
 ```
