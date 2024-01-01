@@ -133,9 +133,7 @@ void get_files(char* path) {
 
   char current_path[PATH_MAX];
   if (getcwd(current_path, sizeof(current_path)) != NULL) {
-    printw(" -----", current_path);
-    printw(" %s ", current_path);
-    printw(" -----\n\n", current_path);
+    printw(" ----- %s -----\n\n", current_path);
   }
 
   if (d) {
