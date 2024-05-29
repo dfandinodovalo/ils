@@ -93,6 +93,5 @@ gcc ils.c -o ils -lncurses
 ### Example:
 
 <p align="center">
-  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/image_1.png?raw=true" alt="ils running in /home/user/Desktop">
-  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/image_2.png?raw=true" alt="ils running in /home/user/Desktop/src">
+  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/ils.gif?raw=true" alt="ils running in /home/user/Desktop">
 </p>
