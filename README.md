@@ -75,12 +75,6 @@ make run
 make
 ```
 
-Or, you can manually compile it using gcc:
-
-```
-gcc ils.c -o ils -lncurses
-```
-
 ## Execute:
 
 
