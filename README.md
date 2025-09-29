@@ -2,6 +2,12 @@
 
 "ils" is a command-line utility designed to provide iterative exploration of directory contents within the user's working environment. It allows users to efficiently navigate through the folder structure and gain insights into files and subdirectories present in each directory.
 
+## Demo
+
+<p align="center">
+  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/ils.gif?raw=true" alt="ils running in /home/user/Desktop">
+</p>
+
 ## Features
 
 - **Iterative Exploration:** Progressively navigate through directories, facilitating understanding of folder hierarchy.
@@ -83,9 +89,3 @@ make
 ```
 <br>
 <br>
-
-### Example:
-
-<p align="center">
-  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/ils.gif?raw=true" alt="ils running in /home/user/Desktop">
-</p>
