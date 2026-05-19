@@ -1,82 +1,108 @@
-# ils - Interactive List Command
-
-**ils** is a terminal file explorer written in C with ncurses. It allows interactive navigation of directory structures with keyboard controls, file previews, incremental search, and the ability to `cd` into the browsed directory on exit.
-
-## Demo
+<h1 align="center">ils</h1>
+<p align="center"><b>A fast, interactive file explorer for the terminal</b></p>
+<p align="center">Navigate directories, preview files, filter instantly — all from your terminal. Written in C with ncurses. Zero runtime dependencies.</p>
 
 <p align="center">
-  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/ils.gif?raw=true" alt="ils demo">
+  <img src="https://github.com/dfandinodovalo/ils/blob/main/docs/ils.gif?raw=true" alt="ils demo" width="720">
 </p>
+
+## Why ils?
+
+Most terminal file managers are either too heavy or too minimal. **ils** sits in the sweet spot:
+
+- **Fast** — pure C, compiles in under a second, starts instantly
+- **Lightweight** — single binary, only depends on ncursesw (already on most systems)
+- **Intuitive** — arrow keys, vim bindings, or WASD — pick your style
+- **cd on exit** — press `c` and your shell lands in the directory you were browsing
 
 ## Features
 
-- **Interactive navigation** — browse directories with arrow keys, WASD, or vim-style bindings
-- **File preview** — press `p` to preview file contents with scroll support
-- **Incremental search** — press `/` to filter files in real-time
-- **Detailed info** — toggle file metadata columns (permissions, size, date) with `i`
-- **Hidden files** — toggle visibility with `h`
-- **CD on exit** — press `c` to quit and have your shell cd into the directory you were browsing
-- **Symlink support** — symlinks are displayed with their targets
-- **Color-coded entries** — folders, files, hidden items, and symlinks each have distinct colors
+| Feature | Description |
+|---|---|
+| 🔍 **Incremental search** | Press `/` to filter files in real-time as you type |
+| 📄 **File preview** | Press `p` to preview file contents with scroll support |
+| 📊 **Detailed info** | Toggle permissions, size, and dates with `i` |
+| 👻 **Hidden files** | Toggle visibility with `h` |
+| 🔗 **Symlink aware** | Displays symlink targets inline |
+| 🎨 **Color-coded** | Folders, files, hidden items, and symlinks each have distinct colors |
+| 📂 **cd on exit** | Quit and land in the directory you were browsing |
 
-## Dependencies
+## Installation
 
-It is necessary to install **ncursesw**:
+### Build from source
+
+Requires `gcc` and `ncursesw`:
 
 ```bash
-# Debian/Ubuntu
-apt-get install ncurses-dev
+# Install ncursesw
+sudo apt-get install libncursesw5-dev   # Debian / Ubuntu
+sudo pacman -S ncurses                  # Arch Linux
 
-# Arch Linux
-pacman -S ncurses
+# Build
+git clone https://github.com/dfandinodovalo/ils.git
+cd ils
+make
 ```
 
-## Build & Run
+### Run
 
 ```bash
-make          # Compile
-make run      # Compile and run
-make clean    # Remove build artifacts
-
 ./ils                  # Browse current directory
-./ils /path/to/dir     # Browse specific directory
+./ils /path/to/dir     # Browse a specific directory
 ```
+
+> **Tip:** Copy the binary to somewhere in your `$PATH` (e.g. `sudo cp ils /usr/local/bin/`) to use it from anywhere.
 
 ## Keyboard Controls
 
 | Key | Action |
 |---|---|
-| `↑` / `w` / `k` | Move up |
-| `↓` / `s` / `j` | Move down |
-| `←` / `a` | Parent directory |
-| `→` / `Enter` / `l` / `d` | Enter directory |
-| `PgUp` / `PgDn` | Page navigation |
-| `Home` / `g` | Jump to first |
-| `End` / `G` | Jump to last |
-| `h` / `H` | Toggle hidden files |
+| `↑` `k` `w` | Move up |
+| `↓` `j` `s` | Move down |
+| `←` `a` | Go to parent directory |
+| `→` `Enter` `l` `d` | Enter directory |
+| `PgUp` / `PgDn` | Page up / down |
+| `Home` `g` / `End` `G` | Jump to first / last |
+| `h` | Toggle hidden files |
 | `i` | Toggle detailed info columns |
-| `p` | Preview file content (Esc/p/q to close) |
-| `/` | Incremental search/filter |
+| `p` | Preview file (scroll with arrows, close with `Esc`/`q`) |
+| `/` | Incremental search (Esc to clear, Enter to keep) |
 | `c` | Quit and cd into current directory |
-| `q` / `x` | Quit |
+| `q` `x` | Quit |
 
-## CD on Exit
+## Shell Integration (cd on exit)
 
-Press `c` inside ils to quit and have your shell automatically change to the directory you were browsing. This requires sourcing the shell wrapper function.
+Press `c` inside ils to quit and have your shell change to the directory you were browsing.
 
 ### Setup
 
-Add the following to your `.bashrc` or `.zshrc`:
+Add to your `.bashrc` or `.zshrc`:
 
 ```bash
-ILS_BIN="/path/to/ils"          # path to the ils binary
+ILS_BIN="/path/to/ils"
 source /path/to/ils.sh
 ```
 
+Then use `ils` as usual. Press `c` to quit + cd, or `q` to quit normally.
+
 ### How it works
 
-1. When you press `c`, the ils binary writes the current path to a temp file (`$TMPDIR/ils_lastdir`)
-2. The shell wrapper function reads the temp file after ils exits
-3. The wrapper runs `cd` into that directory and displays the new path
+When you press `c`, ils writes the current path to a temp file. The shell wrapper reads it after ils exits and runs `cd`. This requires a shell function (not an alias) because only functions can change the parent shell's working directory.
 
-> **Note:** A plain alias (`alias ils=...`) will **not** work for cd-on-exit — a shell function is required because aliases cannot change the working directory of the parent shell. Make sure you are using `source ils.sh` instead of an alias.
+## Project Structure
+
+```
+main.c              → Entry point, event loop, input handling
+file_utils.c/h      → Directory reading, navigation, filtering
+screen_manager.c/h  → ncurses init/cleanup, color pairs, layout
+ui_renderer.c/h     → Header, file list, scrollbar, footer rendering
+ils.sh              → Shell wrapper for cd-on-exit
+```
+
+## Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
+## License
+
+MIT
