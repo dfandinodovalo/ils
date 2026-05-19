@@ -17,7 +17,7 @@ ils() {
         rm -f "$_ils_lastdir"
         if [ -d "$_ils_dir" ] && [ "$_ils_dir" != "$(pwd)" ]; then
             cd "$_ils_dir" || return
-            echo "cd: $_ils_dir"
+            echo "\033[1;33m→ \033[0;36m$_ils_dir\033[0m"
         fi
     fi
 }
