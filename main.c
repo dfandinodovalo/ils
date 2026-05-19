@@ -32,6 +32,48 @@ int main(int argc, char *argv[]) {
         render(&state);
         int ch = getch();
 
+        if (state.preview_active) {
+            int preview_h = LINES - 6;
+            if (preview_h < 3) preview_h = 3;
+            switch (ch) {
+                case 27: case 'p': case 'q':
+                    free_preview(&state);
+                    state.preview_active = false;
+                    break;
+                case KEY_UP: case 'k': case 'w':
+                    if (state.preview_scroll > 0)
+                        state.preview_scroll--;
+                    break;
+                case KEY_DOWN: case 'j': case 's':
+                    if (state.preview_scroll < state.preview_line_count - preview_h)
+                        state.preview_scroll++;
+                    if (state.preview_scroll < 0) state.preview_scroll = 0;
+                    break;
+                case KEY_PPAGE:
+                    state.preview_scroll -= preview_h;
+                    if (state.preview_scroll < 0) state.preview_scroll = 0;
+                    break;
+                case KEY_NPAGE:
+                    state.preview_scroll += preview_h;
+                    if (state.preview_scroll > state.preview_line_count - preview_h)
+                        state.preview_scroll = state.preview_line_count - preview_h;
+                    if (state.preview_scroll < 0) state.preview_scroll = 0;
+                    break;
+                case KEY_HOME: case 'g':
+                    state.preview_scroll = 0;
+                    break;
+                case KEY_END: case 'G':
+                    state.preview_scroll = state.preview_line_count - preview_h;
+                    if (state.preview_scroll < 0) state.preview_scroll = 0;
+                    break;
+                case KEY_RESIZE:
+                    compute_layout(&state.header_h, &state.list_h, &state.footer_h);
+                    state.list_y = state.header_h;
+                    break;
+            }
+            continue;
+        }
+
         if (state.filter_active) {
             switch (ch) {
                 case 27:
@@ -122,6 +164,11 @@ int main(int argc, char *argv[]) {
                 state.filter_active = true;
                 state.filter_len = 0;
                 state.filter[0] = '\0';
+                break;
+            case 'p':
+                if (state.visible_count > 0 &&
+                    !state.items[state.visible[state.cursor]].is_directory)
+                    load_preview(&state);
                 break;
             case 'c':
                 state.cd_on_exit = true;

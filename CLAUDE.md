@@ -44,6 +44,7 @@ Layered design: main.c orchestrates via `app_state`, file_utils handles data, ui
 - `Home/g` / `End/G` — Jump to first/last
 - `h/H` — Toggle hidden files
 - `i` — Toggle detailed info columns
+- `p` — Preview file content (scrollable, Esc/p/q to close)
 - `/` — Incremental search/filter (Esc to clear, Enter to keep)
 - `c` — Quit and cd into current directory (requires shell wrapper)
 - `q/x` — Exit

@@ -149,10 +149,81 @@ void toggle_hidden(app_state *state) {
 }
 
 void cleanup_state(app_state *state) {
+    free_preview(state);
     free(state->items);
     free(state->visible);
     state->items = NULL;
     state->visible = NULL;
+}
+
+void free_preview(app_state *state) {
+    if (state->preview_lines) {
+        for (int i = 0; i < state->preview_line_count; i++)
+            free(state->preview_lines[i]);
+        free(state->preview_lines);
+        state->preview_lines = NULL;
+    }
+    state->preview_line_count = 0;
+    state->preview_scroll = 0;
+    state->preview_binary = false;
+}
+
+#define PREVIEW_MAX_LINES 10000
+#define PREVIEW_MAX_LINE_LEN 1024
+#define BINARY_CHECK_SIZE 512
+
+void load_preview(app_state *state) {
+    free_preview(state);
+
+    if (state->visible_count == 0) return;
+
+    file_item *item = &state->items[state->visible[state->cursor]];
+    if (item->is_directory) return;
+
+    snprintf(state->preview_filename, sizeof(state->preview_filename), "%s", item->name);
+
+    char fullpath[PATH_MAX + 256];
+    snprintf(fullpath, sizeof(fullpath), "%s/%s", state->path, item->name);
+
+    FILE *f = fopen(fullpath, "rb");
+    if (!f) return;
+
+    unsigned char probe[BINARY_CHECK_SIZE];
+    size_t probe_len = fread(probe, 1, sizeof(probe), f);
+    for (size_t i = 0; i < probe_len; i++) {
+        if (probe[i] == '\0') {
+            state->preview_binary = true;
+            state->preview_active = true;
+            fclose(f);
+            return;
+        }
+    }
+    rewind(f);
+
+    int capacity = 256;
+    state->preview_lines = malloc(capacity * sizeof(char *));
+    int count = 0;
+
+    char buf[PREVIEW_MAX_LINE_LEN];
+    while (fgets(buf, sizeof(buf), f) && count < PREVIEW_MAX_LINES) {
+        size_t len = strlen(buf);
+        if (len > 0 && buf[len - 1] == '\n')
+            buf[--len] = '\0';
+        if (len > 0 && buf[len - 1] == '\r')
+            buf[--len] = '\0';
+
+        if (count >= capacity) {
+            capacity *= 2;
+            state->preview_lines = realloc(state->preview_lines, capacity * sizeof(char *));
+        }
+        state->preview_lines[count] = strdup(buf);
+        count++;
+    }
+
+    fclose(f);
+    state->preview_line_count = count;
+    state->preview_scroll = 0;
+    state->preview_active = true;
 }
 
 void format_permissions(mode_t mode, bool is_symlink, char *perms) {

@@ -20,7 +20,11 @@ void init_ncurses(void) {
     init_pair(COLOR_SYMLINK,   COLOR_CYAN,    -1);
     init_pair(COLOR_FOOTER,    COLOR_WHITE,   -1);
     init_pair(COLOR_SEARCH,    COLOR_YELLOW,  -1);
-    init_pair(COLOR_SCROLLBAR, COLOR_CYAN,    -1);
+    init_pair(COLOR_SCROLLBAR,      COLOR_CYAN,    -1);
+    init_pair(COLOR_PREVIEW_BORDER, COLOR_CYAN,    -1);
+    init_pair(COLOR_PREVIEW_TEXT,   COLOR_WHITE,   -1);
+    init_pair(COLOR_PREVIEW_TITLE,  COLOR_YELLOW,  -1);
+    init_pair(COLOR_PREVIEW_LINENO, COLOR_CYAN,    -1);
 
     curs_set(0);
     cbreak();

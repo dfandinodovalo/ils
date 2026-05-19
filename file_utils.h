@@ -36,6 +36,12 @@ typedef struct {
     int list_y;
     bool running;
     bool cd_on_exit;
+    bool preview_active;
+    char **preview_lines;
+    int preview_line_count;
+    int preview_scroll;
+    char preview_filename[256];
+    bool preview_binary;
 } app_state;
 
 void load_directory(app_state *state);
@@ -46,5 +52,7 @@ void toggle_hidden(app_state *state);
 void cleanup_state(app_state *state);
 void format_permissions(mode_t mode, bool is_symlink, char *perms);
 void format_size(off_t size, bool is_dir, char *buf, size_t buflen);
+void load_preview(app_state *state);
+void free_preview(app_state *state);
 
 #endif

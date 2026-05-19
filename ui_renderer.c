@@ -181,7 +181,7 @@ static void render_footer(app_state *state) {
 
         mvprintw(y, MARGIN_X, "%s", status);
 
-        const char *help = "/ filter  i info  h hidden  c cd&quit  q quit";
+        const char *help = "/ filter  p preview  i info  h hidden  c cd&quit  q quit";
         int help_x = COLS - (int)strlen(help) - MARGIN_X;
         if (help_x > MARGIN_X + (int)strlen(status) + 2) {
             attron(A_DIM);
@@ -193,10 +193,111 @@ static void render_footer(app_state *state) {
     }
 }
 
+static void render_preview(app_state *state) {
+    int pad = 2;
+    int box_y = pad;
+    int box_x = pad + 1;
+    int box_h = LINES - pad * 2;
+    int box_w = COLS - (pad + 1) * 2;
+    if (box_h < 5 || box_w < 20) return;
+
+    int inner_h = box_h - 2;
+    int inner_w = box_w - 2;
+
+    attron(COLOR_PAIR(COLOR_PREVIEW_BORDER));
+    mvaddch(box_y, box_x, ACS_ULCORNER);
+    mvaddch(box_y, box_x + box_w - 1, ACS_URCORNER);
+    mvaddch(box_y + box_h - 1, box_x, ACS_LLCORNER);
+    mvaddch(box_y + box_h - 1, box_x + box_w - 1, ACS_LRCORNER);
+    for (int i = 1; i < box_w - 1; i++) {
+        mvaddch(box_y, box_x + i, ACS_HLINE);
+        mvaddch(box_y + box_h - 1, box_x + i, ACS_HLINE);
+    }
+    for (int i = 1; i < box_h - 1; i++) {
+        mvaddch(box_y + i, box_x, ACS_VLINE);
+        mvaddch(box_y + i, box_x + box_w - 1, ACS_VLINE);
+        move(box_y + i, box_x + 1);
+        for (int c = 0; c < inner_w; c++)
+            addch(' ');
+    }
+    attroff(COLOR_PAIR(COLOR_PREVIEW_BORDER));
+
+    char title[300];
+    snprintf(title, sizeof(title), " %s ", state->preview_filename);
+    int title_len = (int)strlen(title);
+    if (title_len > box_w - 4) title_len = box_w - 4;
+    attron(COLOR_PAIR(COLOR_PREVIEW_TITLE) | A_BOLD);
+    mvprintw(box_y, box_x + 2, "%.*s", title_len, title);
+    attroff(COLOR_PAIR(COLOR_PREVIEW_TITLE) | A_BOLD);
+
+    if (state->preview_binary) {
+        const char *msg = "Binary file - preview not available";
+        attron(COLOR_PAIR(COLOR_PREVIEW_TEXT) | A_DIM);
+        mvprintw(box_y + inner_h / 2 + 1, box_x + (box_w - (int)strlen(msg)) / 2, "%s", msg);
+        attroff(COLOR_PAIR(COLOR_PREVIEW_TEXT) | A_DIM);
+    } else if (state->preview_line_count == 0) {
+        const char *msg = "Empty file";
+        attron(COLOR_PAIR(COLOR_PREVIEW_TEXT) | A_DIM);
+        mvprintw(box_y + inner_h / 2 + 1, box_x + (box_w - (int)strlen(msg)) / 2, "%s", msg);
+        attroff(COLOR_PAIR(COLOR_PREVIEW_TEXT) | A_DIM);
+    } else {
+        int lineno_width = 0;
+        int max_lineno = state->preview_scroll + inner_h;
+        if (max_lineno > state->preview_line_count)
+            max_lineno = state->preview_line_count;
+        for (int n = max_lineno; n > 0; n /= 10)
+            lineno_width++;
+        if (lineno_width < 3) lineno_width = 3;
+
+        int text_w = inner_w - lineno_width - 2;
+        if (text_w < 1) text_w = 1;
+
+        for (int i = 0; i < inner_h && state->preview_scroll + i < state->preview_line_count; i++) {
+            int line_idx = state->preview_scroll + i;
+            int y = box_y + 1 + i;
+
+            attron(COLOR_PAIR(COLOR_PREVIEW_LINENO) | A_DIM);
+            mvprintw(y, box_x + 1, "%*d ", lineno_width, line_idx + 1);
+            attroff(COLOR_PAIR(COLOR_PREVIEW_LINENO) | A_DIM);
+
+            attron(COLOR_PAIR(COLOR_PREVIEW_TEXT));
+            char *line = state->preview_lines[line_idx];
+            int col = 0;
+            int screen_x = box_x + 1 + lineno_width + 1;
+            for (int j = 0; line[j] && col < text_w; j++) {
+                if (line[j] == '\t') {
+                    int spaces = 4 - (col % 4);
+                    for (int s = 0; s < spaces && col < text_w; s++, col++)
+                        mvaddch(y, screen_x + col, ' ');
+                } else {
+                    mvaddch(y, screen_x + col, (unsigned char)line[j]);
+                    col++;
+                }
+            }
+            attroff(COLOR_PAIR(COLOR_PREVIEW_TEXT));
+        }
+    }
+
+    char footer_info[128];
+    if (state->preview_binary) {
+        snprintf(footer_info, sizeof(footer_info), " binary ");
+    } else {
+        snprintf(footer_info, sizeof(footer_info), " %d lines | Esc/p close | arrows scroll ",
+                 state->preview_line_count);
+    }
+    int fi_len = (int)strlen(footer_info);
+    if (fi_len > box_w - 4) fi_len = box_w - 4;
+    attron(COLOR_PAIR(COLOR_PREVIEW_BORDER) | A_DIM);
+    mvprintw(box_y + box_h - 1, box_x + 2, "%.*s", fi_len, footer_info);
+    attroff(COLOR_PAIR(COLOR_PREVIEW_BORDER) | A_DIM);
+}
+
 void render(app_state *state) {
     erase();
     render_header(state);
     render_list(state);
     render_footer(state);
+    if (state->preview_active)
+        render_preview(state);
     refresh();
 }
