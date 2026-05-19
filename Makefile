@@ -1,26 +1,32 @@
-CC=gcc
-CFLAGS=-Wall -Wextra -I/usr/include/ncursesw
-LDFLAGS=-lncursesw
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -I/usr/include/ncursesw
+LDFLAGS = -lncursesw
 
-SOURCES=main.c screen_manager.c file_utils.c ui_renderer.c
-OBJECTS=$(SOURCES:.c=.o)
-BUILD_DIR=build
-EXECUTABLE=ils
+SOURCES = main.c screen_manager.c file_utils.c ui_renderer.c
+BUILD_DIR = build
+OBJECTS = $(addprefix $(BUILD_DIR)/, $(SOURCES:.c=.o))
+EXECUTABLE = ils
 
-# Los objetos ahora estarán en build/
-OBJECTS_BUILD=$(addprefix $(BUILD_DIR)/,$(OBJECTS))
+.PHONY: all clean run
 
 all: $(BUILD_DIR) $(EXECUTABLE)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(EXECUTABLE): $(OBJECTS_BUILD)
-	$(CC) $(OBJECTS_BUILD) -o $@ $(LDFLAGS)
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
 
-# Regla para compilar .c en /build/*.o
 $(BUILD_DIR)/%.o: %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
+$(BUILD_DIR)/main.o: screen_manager.h file_utils.h ui_renderer.h
+$(BUILD_DIR)/file_utils.o: file_utils.h
+$(BUILD_DIR)/screen_manager.o: screen_manager.h
+$(BUILD_DIR)/ui_renderer.o: ui_renderer.h file_utils.h screen_manager.h
+
+run: all
+	./$(EXECUTABLE)
+
 clean:
-	rm -f $(BUILD_DIR)/*.o $(EXECUTABLE)
+	rm -rf $(BUILD_DIR) $(EXECUTABLE)

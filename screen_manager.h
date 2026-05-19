@@ -3,29 +3,24 @@
 
 #include <ncursesw/ncurses.h>
 
-// Definiciones de colores
-#define COLOR_BG             1
-#define COLOR_HEADER         2
-#define COLOR_ITEM_SEL       3
-#define COLOR_FILE           4
-#define COLOR_FOLDER         5
-#define COLOR_HIDDEN         6
-#define COLOR_ITEM_FOCUS     7
-#define COLOR_FOOTER         8
+enum {
+    COLOR_BG = 1,
+    COLOR_HEADER,
+    COLOR_SELECTED,
+    COLOR_FILE,
+    COLOR_FOLDER,
+    COLOR_HIDDEN,
+    COLOR_SYMLINK,
+    COLOR_FOOTER,
+    COLOR_SEARCH,
+    COLOR_SCROLLBAR,
+};
 
-// Márgenes y constantes de visualización
-#define MARGIN_X             3
+#define MARGIN_X 2
 
-// Inicializa ncurses y los colores
-void init_ncurses();
+void init_ncurses(void);
+void end_ncurses(void);
+void compute_layout(int *header_h, int *list_h, int *footer_h);
+void print_wstring(int y, int x, const char *str);
 
-// Obtiene las dimensiones actuales del terminal
-void get_terminal_rows(int *header_height, int *list_height, int *footer_height);
-
-// Finaliza ncurses
-void end_ncurses();
-
-// Función auxiliar para imprimir cadenas UTF-8
-void print_wstring(int y, int x, const char* utf8str);
-
-#endif // SCREEN_MANAGER_H
+#endif

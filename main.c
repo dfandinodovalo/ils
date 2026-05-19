@@ -6,76 +6,151 @@
 #include "file_utils.h"
 #include "ui_renderer.h"
 
-int main(int argc, char* argv[]) {
-    char path[PATH_MAX] = ".";
-    struct file_item *items = NULL;
-    int total_elements = 0;
-    int current_index = 0;
-    bool show_hidden = false;
-    int header_height, list_height, footer_height;
-    int list_start_y;
-    bool show_info = false;
+int main(int argc, char *argv[]) {
+    app_state state = {0};
+    state.running = true;
+    state.show_info = true;
 
-    if (argc == 2) 
-        strncpy(path, argv[1], sizeof(path)-1);
+    if (argc == 2) {
+        if (chdir(argv[1]) != 0) {
+            fprintf(stderr, "ils: cannot access '%s'\n", argv[1]);
+            return 1;
+        }
+    }
+    if (!getcwd(state.path, sizeof(state.path))) {
+        fprintf(stderr, "ils: cannot get current directory\n");
+        return 1;
+    }
 
     init_ncurses();
-    get_terminal_rows(&header_height, &list_height, &footer_height);
-    list_start_y = header_height;
-    
-    chdir(path);
-    getcwd(path, sizeof(path));
-    get_files(path, &items, &total_elements, show_hidden);
+    compute_layout(&state.header_h, &state.list_h, &state.footer_h);
+    state.list_y = state.header_h;
 
-    while (1) {
-        clear();
-        print_header(path);
-        print_list(items, total_elements, current_index, list_start_y, list_height);
-        print_footer(total_elements, show_hidden);
-        refresh();
+    load_directory(&state);
 
-        // Manejo de entrada
+    while (state.running) {
+        render(&state);
         int ch = getch();
+
+        if (state.filter_active) {
+            switch (ch) {
+                case 27:
+                    state.filter_active = false;
+                    state.filter_len = 0;
+                    state.filter[0] = '\0';
+                    state.cursor = 0;
+                    rebuild_visible(&state);
+                    break;
+                case '\n':
+                    state.filter_active = false;
+                    break;
+                case KEY_BACKSPACE: case 127: case 8:
+                    if (state.filter_len > 0) {
+                        state.filter[--state.filter_len] = '\0';
+                        state.cursor = 0;
+                        rebuild_visible(&state);
+                    } else {
+                        state.filter_active = false;
+                    }
+                    break;
+                case KEY_UP:
+                    if (state.visible_count > 0)
+                        state.cursor = (state.cursor - 1 + state.visible_count) % state.visible_count;
+                    break;
+                case KEY_DOWN:
+                    if (state.visible_count > 0)
+                        state.cursor = (state.cursor + 1) % state.visible_count;
+                    break;
+                case KEY_RESIZE:
+                    compute_layout(&state.header_h, &state.list_h, &state.footer_h);
+                    state.list_y = state.header_h;
+                    break;
+                default:
+                    if (ch >= 32 && ch < 127 && state.filter_len < (int)sizeof(state.filter) - 1) {
+                        state.filter[state.filter_len++] = (char)ch;
+                        state.filter[state.filter_len] = '\0';
+                        state.cursor = 0;
+                        rebuild_visible(&state);
+                    }
+                    break;
+            }
+            continue;
+        }
+
         switch (ch) {
             case KEY_UP: case 'k': case 'w':
-                current_index = (current_index - 1 + total_elements) % total_elements;
+                if (state.visible_count > 0)
+                    state.cursor = (state.cursor - 1 + state.visible_count) % state.visible_count;
                 break;
             case KEY_DOWN: case 'j': case 's':
-                current_index = (current_index + 1) % total_elements;
+                if (state.visible_count > 0)
+                    state.cursor = (state.cursor + 1) % state.visible_count;
                 break;
             case KEY_LEFT: case 'a':
-                chdir("..");
-                getcwd(path, sizeof(path));
-                current_index = 0;
-                get_files(path, &items, &total_elements, show_hidden);
+                navigate_parent(&state);
                 break;
             case KEY_RIGHT: case '\n': case 'l': case 'd':
-                go_to_directory(current_index, items, total_elements, 
-                                path, &current_index, &items, &total_elements, show_hidden);
+                enter_selected(&state);
+                break;
+            case KEY_PPAGE:
+                if (state.visible_count > 0) {
+                    state.cursor -= state.list_h;
+                    if (state.cursor < 0) state.cursor = 0;
+                }
+                break;
+            case KEY_NPAGE:
+                if (state.visible_count > 0) {
+                    state.cursor += state.list_h;
+                    if (state.cursor >= state.visible_count)
+                        state.cursor = state.visible_count - 1;
+                }
+                break;
+            case KEY_HOME: case 'g':
+                state.cursor = 0;
+                break;
+            case KEY_END: case 'G':
+                if (state.visible_count > 0)
+                    state.cursor = state.visible_count - 1;
                 break;
             case 'h': case 'H':
-                show_hidden = !show_hidden;
-                current_index = 0;
-                get_files(path, &items, &total_elements, show_hidden);
-                break;
-            case 'q': case 'Q': case 'x': case 'X':
-                clean_items(&items);
-                end_ncurses();
-                exit(0);
+                toggle_hidden(&state);
                 break;
             case 'i':
-                show_info = !show_info;
+                state.show_info = !state.show_info;
+                break;
+            case '/':
+                state.filter_active = true;
+                state.filter_len = 0;
+                state.filter[0] = '\0';
+                break;
+            case 'c':
+                state.cd_on_exit = true;
+                state.running = false;
+                break;
+            case 'q': case 'Q': case 'x': case 'X':
+                state.running = false;
                 break;
             case KEY_RESIZE:
-                get_terminal_rows(&header_height, &list_height, &footer_height);
-                list_start_y = header_height;
-                break;
-            default:
+                compute_layout(&state.header_h, &state.list_h, &state.footer_h);
+                state.list_y = state.header_h;
                 break;
         }
     }
 
-    clean_items(&items);
+    cleanup_state(&state);
     end_ncurses();
+
+    if (state.cd_on_exit) {
+        const char *tmpdir = getenv("TMPDIR");
+        if (!tmpdir) tmpdir = "/tmp";
+        char lastdir_path[PATH_MAX];
+        snprintf(lastdir_path, sizeof(lastdir_path), "%s/ils_lastdir", tmpdir);
+        FILE *f = fopen(lastdir_path, "w");
+        if (f) {
+            fprintf(f, "%s", state.path);
+            fclose(f);
+        }
+    }
+
     return 0;
 }

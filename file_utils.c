@@ -1,130 +1,177 @@
+#define _GNU_SOURCE
 #include "file_utils.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <grp.h>
 
-int compare_items(const void *a, const void *b) {
-    const struct file_item *ia = a, *ib = b;
-    // Directories first
-    if (ia->is_directory && !ib->is_directory) return -1;
-    if (!ia->is_directory && ib->is_directory) return 1;
-    // Hidden at the end
-    if (!ia->is_hidden && ib->is_hidden) return -1;
-    if (ia->is_hidden && !ib->is_hidden) return 1;
-    // Alphabetical order
+static int compare_items(const void *a, const void *b) {
+    const file_item *ia = a, *ib = b;
+    if (ia->is_directory != ib->is_directory)
+        return ib->is_directory - ia->is_directory;
+    if (ia->is_hidden != ib->is_hidden)
+        return ia->is_hidden - ib->is_hidden;
     return strcasecmp(ia->name, ib->name);
 }
 
-void clean_items(struct file_item **items) {
-    if (*items) {
-        free(*items);
-        *items = NULL;
-    }
+static bool matches_filter(const char *name, const char *filter) {
+    if (!filter[0]) return true;
+    return strcasestr(name, filter) != NULL;
 }
 
-void format_permissions(mode_t mode, char *perms) {
-    const char *rwx = "rwxrwxrwx";
-    perms[0] = S_ISDIR(mode) ? 'd' : '-';
-    for (int i = 0; i < 9; i++) {
-        perms[i+1] = (mode & (1 << (8-i))) ? rwx[i] : '-';
-    }
-    perms[10] = '\0';
-}
+void rebuild_visible(app_state *state) {
+    free(state->visible);
+    state->visible = NULL;
 
-void get_owner_name(uid_t uid, char *owner, size_t size) {
-    struct passwd *pw = getpwuid(uid);
-    if (pw) {
-        strncpy(owner, pw->pw_name, size-1);
-        owner[size-1] = '\0';
-    } else {
-        snprintf(owner, size, "%d", uid);
-    }
-}
-
-void get_group_name(gid_t gid, char *group, size_t size) {
-    struct group *gr = getgrgid(gid);
-    if (gr) {
-        strncpy(group, gr->gr_name, size-1);
-        group[size-1] = '\0';
-    } else {
-        snprintf(group, size, "%d", gid);
-    }
-}
-
-void get_files(const char* path, struct file_item **items, int *total_elements, bool show_hidden) {
-    clean_items(items);
-    *total_elements = 0;
-
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(path);
-    if (!d) {
-        perror("Error opening directory");
+    if (state->total_items == 0) {
+        state->visible_count = 0;
+        state->cursor = 0;
         return;
     }
 
+    state->visible = malloc(state->total_items * sizeof(int));
+    state->visible_count = 0;
+
+    for (int i = 0; i < state->total_items; i++) {
+        if (matches_filter(state->items[i].name, state->filter))
+            state->visible[state->visible_count++] = i;
+    }
+
+    if (state->cursor >= state->visible_count)
+        state->cursor = state->visible_count > 0 ? state->visible_count - 1 : 0;
+}
+
+void load_directory(app_state *state) {
+    free(state->items);
+    state->items = NULL;
+    state->total_items = 0;
+
+    DIR *d = opendir(state->path);
+    if (!d) return;
+
+    int capacity = 64;
+    state->items = malloc(capacity * sizeof(file_item));
     int count = 0;
-    while ((dir = readdir(d)) != NULL) {
-        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0) continue;
-        if (!show_hidden && dir->d_name[0] == '.') continue;
+
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        bool hidden = entry->d_name[0] == '.';
+        if (!state->show_hidden && hidden)
+            continue;
+
+        if (count >= capacity) {
+            capacity *= 2;
+            state->items = realloc(state->items, capacity * sizeof(file_item));
+        }
+
+        file_item *item = &state->items[count];
+        memset(item, 0, sizeof(file_item));
+        snprintf(item->name, sizeof(item->name), "%s", entry->d_name);
+
+        char fullpath[PATH_MAX + 256];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", state->path, entry->d_name);
+
+        struct stat lstat_info;
+        if (lstat(fullpath, &lstat_info) != 0)
+            continue;
+
+        item->is_symlink = S_ISLNK(lstat_info.st_mode);
+
+        if (stat(fullpath, &item->stat_info) != 0)
+            item->stat_info = lstat_info;
+
+        item->is_directory = S_ISDIR(item->stat_info.st_mode);
+        item->is_hidden = hidden;
+
+        format_permissions(item->stat_info.st_mode, item->is_symlink, item->permissions);
+
+        struct passwd *pw = getpwuid(item->stat_info.st_uid);
+        if (pw)
+            strncpy(item->owner, pw->pw_name, sizeof(item->owner) - 1);
+        else
+            snprintf(item->owner, sizeof(item->owner), "%d", item->stat_info.st_uid);
+
+        struct group *gr = getgrgid(item->stat_info.st_gid);
+        if (gr)
+            strncpy(item->group, gr->gr_name, sizeof(item->group) - 1);
+        else
+            snprintf(item->group, sizeof(item->group), "%d", item->stat_info.st_gid);
+
+        if (item->is_symlink) {
+            ssize_t len = readlink(fullpath, item->link_target, sizeof(item->link_target) - 1);
+            if (len > 0) item->link_target[len] = '\0';
+        }
+
         count++;
     }
 
-    *items = malloc(count * sizeof(struct file_item));
-    if (!(*items)) {
-        closedir(d);
-        return;
-    }
-    rewinddir(d);
-
-    int i = 0;
-    while ((dir = readdir(d)) != NULL) {
-        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0) continue;
-        int hidden = (dir->d_name[0] == '.');
-        if (!show_hidden && hidden) continue;
-
-        char fullpath[PATH_MAX];
-        snprintf(fullpath, sizeof(fullpath), "%s/%s", path, dir->d_name);
-
-        strncpy((*items)[i].name, dir->d_name, sizeof((*items)[i].name)-1);
-        (*items)[i].name[sizeof((*items)[i].name)-1] = '\0';
-
-        if (stat(fullpath, &(*items)[i].stat_info) == 0) {
-            (*items)[i].is_directory = S_ISDIR((*items)[i].stat_info.st_mode);
-            (*items)[i].is_hidden = hidden;
-            
-            // Nuevos campos
-            format_permissions((*items)[i].stat_info.st_mode, (*items)[i].permissions);
-            get_owner_name((*items)[i].stat_info.st_uid, (*items)[i].owner, sizeof((*items)[i].owner));
-            get_group_name((*items)[i].stat_info.st_gid, (*items)[i].group, sizeof((*items)[i].group));
-            
-            i++;
-        }
-    }
-
-    *total_elements = i;
-    qsort(*items, *total_elements, sizeof(struct file_item), compare_items);
     closedir(d);
+    state->total_items = count;
+    qsort(state->items, count, sizeof(file_item), compare_items);
+
+    state->filter_len = 0;
+    state->filter[0] = '\0';
+    state->filter_active = false;
+    rebuild_visible(state);
 }
 
-void go_to_directory(int idx, struct file_item *items, int total_elements, 
-                    char *path, int *current_index, 
-                    struct file_item **items_ptr, int *total_elements_ptr, bool show_hidden) {
-    if (idx < 0 || idx >= total_elements) return;
-    if (items[idx].is_directory) {
-        char newPath[PATH_MAX];
-        strncpy(newPath, path, sizeof(newPath) - 1);
-        newPath[sizeof(newPath) - 1] = '\0';
-        size_t len = strlen(newPath);
-        if (len < sizeof(newPath) - 2) {
-            newPath[len] = '/';
-            newPath[len + 1] = '\0';
-            strncat(newPath, items[idx].name, sizeof(newPath) - len - 2);
-        }
-        if (chdir(newPath) == 0) {
-            getcwd(path, PATH_MAX);
-            *current_index = 0;
-            get_files(path, items_ptr, total_elements_ptr, show_hidden);
-        }
+void navigate_parent(app_state *state) {
+    if (chdir("..") == 0 && getcwd(state->path, sizeof(state->path))) {
+        state->cursor = 0;
+        load_directory(state);
     }
+}
+
+void enter_selected(app_state *state) {
+    if (state->visible_count == 0) return;
+
+    file_item *item = &state->items[state->visible[state->cursor]];
+    if (!item->is_directory) return;
+
+    char newpath[PATH_MAX + 256];
+    snprintf(newpath, sizeof(newpath), "%s/%s", state->path, item->name);
+
+    if (chdir(newpath) == 0 && getcwd(state->path, sizeof(state->path))) {
+        state->cursor = 0;
+        load_directory(state);
+    }
+}
+
+void toggle_hidden(app_state *state) {
+    state->show_hidden = !state->show_hidden;
+    state->cursor = 0;
+    load_directory(state);
+}
+
+void cleanup_state(app_state *state) {
+    free(state->items);
+    free(state->visible);
+    state->items = NULL;
+    state->visible = NULL;
+}
+
+void format_permissions(mode_t mode, bool is_symlink, char *perms) {
+    perms[0] = is_symlink ? 'l' : S_ISDIR(mode) ? 'd' : '-';
+    const char *rwx = "rwxrwxrwx";
+    for (int i = 0; i < 9; i++)
+        perms[i + 1] = (mode & (1 << (8 - i))) ? rwx[i] : '-';
+    perms[10] = '\0';
+}
+
+void format_size(off_t size, bool is_dir, char *buf, size_t buflen) {
+    if (is_dir)
+        snprintf(buf, buflen, "<DIR>");
+    else if (size < 1024)
+        snprintf(buf, buflen, "%ld B", (long)size);
+    else if (size < 1024 * 1024)
+        snprintf(buf, buflen, "%.1f KB", (double)size / 1024);
+    else if (size < 1024L * 1024 * 1024)
+        snprintf(buf, buflen, "%.1f MB", (double)size / (1024 * 1024));
+    else
+        snprintf(buf, buflen, "%.1f GB", (double)size / (1024L * 1024 * 1024));
 }
